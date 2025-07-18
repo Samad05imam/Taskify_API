@@ -6,7 +6,7 @@ import bcrypt from "bcryptjs"
 export const signup = async (req, res) => {
     try {
         const { name, email, password } = req.body;
-        if (!name || !email ||  !password) {
+        if (!name || !email || !password) {
             return res.status(404).json({
                 message: "Input missing!",
                 success: false,
@@ -81,8 +81,15 @@ export const login = async (req, res) => {
             email: user.email,
             pno: user.pno,
         }
+        res.cookie("token", token, {
+            maxAge: 24 * 60 * 60 * 1000, // 1 day
+            httpOnly: true,
+            sameSite: "None", // ← must be 'None' for cross-origin
+            secure: true,     // ← must be true when using https
+            path: "/",
+        });
 
-        return res.status(200).cookie("token", token, { maxAge: 1 * 24 * 60 * 60 * 1000, httpsOnly: true, sameSite: 'strict' }).json({
+        res.status(200).json({
             message: `Welcome back ${user.name}`,
             user,
             success: true
@@ -90,23 +97,27 @@ export const login = async (req, res) => {
     } catch (error) {
         console.error("Login Error: ", error)
         return res.status(501).json({
-            message:"Can't loging in you ... try again later",
-            success:false
+            message: "Can't loging in you ... try again later",
+            success: false
         })
     }
 }
 
-export const logout =  async (req , res)=>{
+export const logout = async (req, res) => {
     try {
-        return res.status(200).cookie("token" , "" , {maxage:"0"}).json({
-            message:"Successfully logout! ",
-            success:true
-        })
+        res
+            .clearCookie('token', {
+                httpOnly: true,
+                sameSite: 'Lax',
+                secure: process.env.NODE_ENV === 'production'
+            })
+            .status(200)
+            .json({ success: true, message: 'Logged out successfully' });
     } catch (error) {
-        console.error("Logout Error:" ,error);
+        console.error("Logout Error:", error);
         return res.status(501).json({
-            message:"Can't loging out you ... try again later",
-            success:false
+            message: "Can't loging out you ... try again later",
+            success: false
         })
     }
 }
