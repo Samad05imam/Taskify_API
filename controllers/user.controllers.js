@@ -45,81 +45,88 @@ export const signup = async (req, res) => {
 export const login = async (req, res) => {
     try {
         const { email, password } = req.body;
+
+        // Validate inputs
         if (!email || !password) {
-            return res.status(404).json({
-                message: "Somethig is missing !",
-                success: false
-            })
-        }
-
-        let user = await User.findOne({ email });
-        if (!user) {
-            return res.status(401).json({
-                message: "Email or Password is incorrect !",
+            return res.status(400).json({
                 success: false,
-            })
-        }
-
-        const isPasswordMatch = await bcrypt.compare(password, user.password);
-
-        if (!isPasswordMatch) {
-            return res.status(401).json({
-                message: "Email or Password is incorrect !",
-                success: false,
+                message: "Email and password are required!"
             });
         }
 
-        const tokenData = {
-            userId: user._id
+        // Check if user exists
+        const user = await User.findOne({ email });
+        if (!user) {
+            return res.status(401).json({
+                success: false,
+                message: "Invalid email or password!"
+            });
         }
 
-        const token = await jwt.sign(tokenData, process.env.SECRET_KEY, { expiresIn: '1d' });
+        // Validate password
+        const isPasswordMatch = await bcrypt.compare(password, user.password);
+        if (!isPasswordMatch) {
+            return res.status(401).json({
+                success: false,
+                message: "Invalid email or password!"
+            });
+        }
 
-        user = {
+        // Generate JWT
+        const token = jwt.sign(
+            { userId: user._id },
+            process.env.SECRET_KEY,
+            { expiresIn: '1d' }
+        );
+
+        // Prepare public user data
+        const safeUser = {
             _id: user._id,
             name: user.name,
             email: user.email,
             pno: user.pno,
-        }
+        };
+
+        // Send cookie
         res.cookie("token", token, {
             httpOnly: true,
-            secure: false,                // false for localhost (no https)
-            sameSite: "lax",              // lax for localhost
-            maxAge: 24 * 60 * 60 * 1000   // 1 day
+            secure: process.env.NODE_ENV === 'production',  // true in deployment
+            sameSite: process.env.NODE_ENV === 'production' ? "None" : "Lax",
+            maxAge: 24 * 60 * 60 * 1000, // 1 day
         });
 
-
-        res.status(200).json({
+        return res.status(200).json({
+            success: true,
             message: `Welcome back ${user.name}`,
-            user,
-            success: true
-        })
+            user: safeUser
+        });
+
     } catch (error) {
-        console.error("Login Error: ", error)
-        return res.status(501).json({
-            message: "Can't loging in you ... try again later",
-            success: false
-        })
+        console.error("Login Error:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Server error during login. Try again later."
+        });
     }
-}
+};
 
 export const logout = async (req, res) => {
-  try {
-    res.clearCookie('token', {
-      httpOnly: true,
-      sameSite: process.env.NODE_ENV === 'production' ? 'None' : 'Lax',
-      secure: process.env.NODE_ENV === 'production'
-    });
+    try {
+        res.clearCookie("token", {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: process.env.NODE_ENV === 'production' ? 'None' : 'Lax'
+        });
 
-    return res.status(200).json({
-      success: true,
-      message: 'Logged out successfully'
-    });
-  } catch (error) {
-    console.error("Logout Error:", error);
-    return res.status(501).json({
-      success: false,
-      message: "Can't log you out... try again later"
-    });
-  }
+        return res.status(200).json({
+            success: true,
+            message: "Logged out successfully"
+        });
+    } catch (error) {
+        console.error("Logout Error:", error.message);
+        return res.status(500).json({
+            success: false,
+            message: "Unable to log out. Please try again later."
+        });
+    }
 };
