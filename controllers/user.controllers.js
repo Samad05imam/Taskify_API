@@ -82,12 +82,12 @@ export const login = async (req, res) => {
             pno: user.pno,
         }
         res.cookie("token", token, {
-            maxAge: 24 * 60 * 60 * 1000, // 1 day
             httpOnly: true,
-            sameSite: "None", // ← must be 'None' for cross-origin
-            secure: true,     // ← must be true when using https
-            path: "/",
+            secure: false,                // false for localhost (no https)
+            sameSite: "lax",              // lax for localhost
+            maxAge: 24 * 60 * 60 * 1000   // 1 day
         });
+
 
         res.status(200).json({
             message: `Welcome back ${user.name}`,
@@ -104,21 +104,22 @@ export const login = async (req, res) => {
 }
 
 export const logout = async (req, res) => {
-    try {
-        res
-            .clearCookie('token', {
-                httpOnly: true,
-                sameSite: 'Lax',
-                secure: process.env.NODE_ENV === 'production'
-            })
-            .status(200)
-            .json({ success: true, message: 'Logged out successfully' });
-    } catch (error) {
-        console.error("Logout Error:", error);
-        return res.status(501).json({
-            message: "Can't loging out you ... try again later",
-            success: false
-        })
-    }
-}
+  try {
+    res.clearCookie('token', {
+      httpOnly: true,
+      sameSite: process.env.NODE_ENV === 'production' ? 'None' : 'Lax',
+      secure: process.env.NODE_ENV === 'production'
+    });
 
+    return res.status(200).json({
+      success: true,
+      message: 'Logged out successfully'
+    });
+  } catch (error) {
+    console.error("Logout Error:", error);
+    return res.status(501).json({
+      success: false,
+      message: "Can't log you out... try again later"
+    });
+  }
+};
